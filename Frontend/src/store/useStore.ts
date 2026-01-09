@@ -1,0 +1,389 @@
+import { create } from 'zustand';
+import { Node, Edge } from 'reactflow';
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  lastEdited: string;
+  resourceCount: number;
+  status: 'draft' | 'deployed' | 'syncing';
+}
+
+export interface AWSResource {
+  id: string;
+  name: string;
+  type: string;
+  category: 'network' | 'compute' | 'storage' | 'database' | 'security' | 'integration';
+  icon: string;
+  terraformType: string;
+}
+
+interface StudioState {
+  // Diagram state
+  nodes: Node[];
+  edges: Edge[];
+  selectedNode: string | null;
+  
+  // Terraform state
+  terraformCode: string;
+  isEditing: boolean;
+  syncStatus: 'synced' | 'syncing' | 'error';
+  
+  // UI state
+  isSidebarCollapsed: boolean;
+  isCodePanelCollapsed: boolean;
+  
+  // Actions
+  setNodes: (nodes: Node[]) => void;
+  setEdges: (edges: Edge[]) => void;
+  addNode: (node: Node) => void;
+  removeNode: (nodeId: string) => void;
+  setSelectedNode: (nodeId: string | null) => void;
+  setTerraformCode: (code: string) => void;
+  setIsEditing: (isEditing: boolean) => void;
+  setSyncStatus: (status: 'synced' | 'syncing' | 'error') => void;
+  toggleSidebar: () => void;
+  toggleCodePanel: () => void;
+  generateTerraform: () => void;
+}
+
+interface ProjectState {
+  projects: Project[];
+  currentProject: Project | null;
+  setProjects: (projects: Project[]) => void;
+  setCurrentProject: (project: Project | null) => void;
+  addProject: (project: Project) => void;
+  updateProject: (id: string, updates: Partial<Project>) => void;
+  deleteProject: (id: string) => void;
+}
+
+const generateTerraformFromNodes = (nodes: Node[]): string => {
+  if (nodes.length === 0) {
+    return `# Cloud Architect - Terraform Configuration
+# Drag AWS resources to the canvas to generate code
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+# Your infrastructure code will appear here...
+`;
+  }
+
+  let code = `# Cloud Architect - Terraform Configuration
+# Generated automatically from visual diagram
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+`;
+
+  nodes.forEach((node) => {
+    const resourceData = node.data as { label: string; terraformType: string; resourceType: string };
+    const resourceName = resourceData.label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
+    switch (resourceData.terraformType) {
+      case 'aws_vpc':
+        code += `resource "aws_vpc" "${resourceName}" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_subnet':
+        code += `resource "aws_subnet" "${resourceName}" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_instance':
+        code += `resource "aws_instance" "${resourceName}" {
+  ami           = "ami-0c55b159cbfafe1f0"
+  instance_type = "t3.micro"
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_lambda_function':
+        code += `resource "aws_lambda_function" "${resourceName}" {
+  filename         = "lambda_function.zip"
+  function_name    = "${resourceName}"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "index.handler"
+  runtime          = "nodejs18.x"
+  memory_size      = 128
+  timeout          = 30
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_s3_bucket':
+        code += `resource "aws_s3_bucket" "${resourceName}" {
+  bucket = "${resourceName}-bucket"
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "${resourceName}_versioning" {
+  bucket = aws_s3_bucket.${resourceName}.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+`;
+        break;
+      case 'aws_db_instance':
+        code += `resource "aws_db_instance" "${resourceName}" {
+  identifier           = "${resourceName}"
+  allocated_storage    = 20
+  storage_type         = "gp3"
+  engine               = "postgres"
+  engine_version       = "15.4"
+  instance_class       = "db.t3.micro"
+  db_name              = "mydb"
+  username             = "admin"
+  password             = "CHANGE_ME_SECURE_PASSWORD"
+  skip_final_snapshot  = true
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_dynamodb_table':
+        code += `resource "aws_dynamodb_table" "${resourceName}" {
+  name           = "${resourceName}"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "id"
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_security_group':
+        code += `resource "aws_security_group" "${resourceName}" {
+  name        = "${resourceName}"
+  description = "Security group managed by CloudArchitect"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_api_gateway_rest_api':
+        code += `resource "aws_api_gateway_rest_api" "${resourceName}" {
+  name        = "${resourceName}"
+  description = "API Gateway managed by CloudArchitect"
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      case 'aws_sqs_queue':
+        code += `resource "aws_sqs_queue" "${resourceName}" {
+  name                       = "${resourceName}"
+  delay_seconds              = 0
+  max_message_size           = 262144
+  message_retention_seconds  = 345600
+  visibility_timeout_seconds = 30
+
+  tags = {
+    Name        = "${resourceData.label}"
+    Environment = "production"
+    ManagedBy   = "CloudArchitect"
+  }
+}
+
+`;
+        break;
+      default:
+        code += `# Resource: ${resourceData.label}
+# Type: ${resourceData.terraformType}
+# TODO: Add configuration
+
+`;
+    }
+  });
+
+  return code;
+};
+
+export const useStudioStore = create<StudioState>((set, get) => ({
+  nodes: [],
+  edges: [],
+  selectedNode: null,
+  terraformCode: generateTerraformFromNodes([]),
+  isEditing: false,
+  syncStatus: 'synced',
+  isSidebarCollapsed: false,
+  isCodePanelCollapsed: false,
+
+  setNodes: (nodes) => {
+    set({ nodes });
+    get().generateTerraform();
+  },
+  setEdges: (edges) => set({ edges }),
+  addNode: (node) => {
+    const nodes = [...get().nodes, node];
+    set({ nodes });
+    get().generateTerraform();
+  },
+  removeNode: (nodeId) => {
+    const nodes = get().nodes.filter((n) => n.id !== nodeId);
+    const edges = get().edges.filter((e) => e.source !== nodeId && e.target !== nodeId);
+    set({ nodes, edges, selectedNode: null });
+    get().generateTerraform();
+  },
+  setSelectedNode: (nodeId) => set({ selectedNode: nodeId }),
+  setTerraformCode: (code) => set({ terraformCode: code }),
+  setIsEditing: (isEditing) => set({ isEditing }),
+  setSyncStatus: (status) => set({ syncStatus: status }),
+  toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
+  toggleCodePanel: () => set((state) => ({ isCodePanelCollapsed: !state.isCodePanelCollapsed })),
+  generateTerraform: () => {
+    set({ syncStatus: 'syncing' });
+    const code = generateTerraformFromNodes(get().nodes);
+    setTimeout(() => {
+      set({ terraformCode: code, syncStatus: 'synced' });
+    }, 300);
+  },
+}));
+
+export const useProjectStore = create<ProjectState>((set) => ({
+  projects: [
+    {
+      id: '1',
+      name: 'Production Infrastructure',
+      description: 'Main production environment with auto-scaling',
+      lastEdited: '2 hours ago',
+      resourceCount: 12,
+      status: 'deployed',
+    },
+    {
+      id: '2',
+      name: 'Staging Environment',
+      description: 'Pre-production testing infrastructure',
+      lastEdited: '1 day ago',
+      resourceCount: 8,
+      status: 'syncing',
+    },
+    {
+      id: '3',
+      name: 'Data Pipeline',
+      description: 'ETL and analytics infrastructure',
+      lastEdited: '3 days ago',
+      resourceCount: 15,
+      status: 'draft',
+    },
+  ],
+  currentProject: null,
+
+  setProjects: (projects) => set({ projects }),
+  setCurrentProject: (project) => set({ currentProject: project }),
+  addProject: (project) => set((state) => ({ projects: [...state.projects, project] })),
+  updateProject: (id, updates) =>
+    set((state) => ({
+      projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    })),
+  deleteProject: (id) =>
+    set((state) => ({
+      projects: state.projects.filter((p) => p.id !== id),
+    })),
+}));
