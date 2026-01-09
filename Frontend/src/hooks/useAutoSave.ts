@@ -9,7 +9,7 @@ interface UseAutoSaveOptions {
   nodes: any[];
   generatedCode: string;
   debounceMs?: number;
-  onSaveSuccess?: (projectId: string) => void;
+  onSaveSuccess?: (projectId: string) => void | Promise<void>;
   onSaveStatusChange?: (status: 'saving' | 'saved' | 'unsaved') => void;
 }
 

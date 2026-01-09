@@ -5,6 +5,7 @@ import StudioHeader from '@/components/studio/StudioHeader';
 import AWSSidebar from '@/components/studio/AWSSidebar';
 import DiagramCanvas from '@/components/studio/DiagramCanvas';
 import TerraformEditor from '@/components/studio/TerraformEditor';
+import TextToCloud from '@/components/studio/TextToCloud';
 import { useStudioStore } from '@/store/useStore';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -37,6 +38,11 @@ const Studio: React.FC = () => {
     },
   });
 
+  // Create a wrapper function that matches the expected signature
+  const handleManualSave = useCallback(async () => {
+    await manualSave();
+  }, [manualSave]);
+
   // Mark as unsaved when nodes or terraform code changes
   React.useEffect(() => {
     if (nodes.length > 0 || terraformCode.length > 0) {
@@ -61,11 +67,11 @@ const Studio: React.FC = () => {
   // Expose manual save function to StudioHeader via context or prop
   React.useEffect(() => {
     // Store manual save function in a way StudioHeader can access it
-    (window as any).__studioManualSave = manualSave;
+    (window as any).__studioManualSave = handleManualSave;
     return () => {
       delete (window as any).__studioManualSave;
     };
-  }, [manualSave]);
+  }, [handleManualSave]);
 
   return (
     <motion.div
@@ -78,13 +84,20 @@ const Studio: React.FC = () => {
         projectId={mongoProjectId || projectId || null}
         projectName={projectName}
         onProjectNameChange={setProjectName}
-        onManualSave={manualSave}
+        onManualSave={handleManualSave}
         saveStatus={saveStatus}
       />
       
       <div className="flex-1 flex overflow-hidden">
         <AWSSidebar />
-        <DiagramCanvas />
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex">
+            <div className="w-1/3 p-4">
+              <TextToCloud className="h-full" />
+            </div>
+            <DiagramCanvas />
+          </div>
+        </div>
         <TerraformEditor />
       </div>
     </motion.div>
