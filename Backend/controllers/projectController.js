@@ -1,48 +1,24 @@
 import Project from '../models/Project.js';
 
 // @desc    Save a new project
-// @route   POST /api/projects/save
+// @route   POST /api/projects
 // @access  Private
 export const saveProject = async (req, res) => {
   try {
-    const { 
-      projectName, 
-      nodes, 
-      edges, 
-      generatedCode,
-      name,
-      version,
-      description,
-      type,
-      main,
-      scripts,
-      keywords,
-      author,
-      license
-    } = req.body;
+    const { projectName, nodes, generatedCode } = req.body;
 
     // Validation
-    if (!projectName || !nodes || !edges) {
+    if (!projectName || !nodes) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide projectName, nodes, and edges'
+        message: 'Please provide projectName and nodes'
       });
     }
 
     const project = await Project.create({
       projectName,
       nodes,
-      edges,
       generatedCode: generatedCode || '',
-      name: name || projectName,
-      version: version || '1.0.0',
-      description: description || '',
-      type: type || 'module',
-      main: main || 'index.js',
-      scripts: scripts || {},
-      keywords: keywords || [],
-      author: author || '',
-      license: license || 'ISC',
       user: req.user._id
     });
 
@@ -136,21 +112,7 @@ export const getProject = async (req, res) => {
 // @access  Private
 export const updateProject = async (req, res) => {
   try {
-    const { 
-      projectName, 
-      nodes, 
-      edges, 
-      generatedCode,
-      name,
-      version,
-      description,
-      type,
-      main,
-      scripts,
-      keywords,
-      author,
-      license
-    } = req.body;
+    const { projectName, nodes, generatedCode } = req.body;
 
     let project = await Project.findById(req.params.id);
 
@@ -172,17 +134,7 @@ export const updateProject = async (req, res) => {
     // Update fields
     if (projectName !== undefined) project.projectName = projectName;
     if (nodes !== undefined) project.nodes = nodes;
-    if (edges !== undefined) project.edges = edges;
     if (generatedCode !== undefined) project.generatedCode = generatedCode;
-    if (name !== undefined) project.name = name;
-    if (version !== undefined) project.version = version;
-    if (description !== undefined) project.description = description;
-    if (type !== undefined) project.type = type;
-    if (main !== undefined) project.main = main;
-    if (scripts !== undefined) project.scripts = scripts;
-    if (keywords !== undefined) project.keywords = keywords;
-    if (author !== undefined) project.author = author;
-    if (license !== undefined) project.license = license;
 
     project.updatedAt = Date.now();
     await project.save();

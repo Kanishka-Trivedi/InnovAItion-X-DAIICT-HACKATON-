@@ -1,21 +1,63 @@
-import React from 'react';
-import { Link, useParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Cloud, Save, Play, Download, Share2 } from 'lucide-react';
+import { ArrowLeft, Cloud, Save, Play, Download, Share2, Loader2 } from 'lucide-react';
 import { GradientButton } from '@/components/ui/GradientButton';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { useProjectStore, useStudioStore } from '@/store/useStore';
+import { useStudioStore } from '@/store/useStore';
 import { toast } from 'sonner';
 
-const StudioHeader: React.FC = () => {
-  const { projectId } = useParams();
-  const { projects } = useProjectStore();
-  const { syncStatus, terraformCode, nodes } = useStudioStore();
-  
-  const project = projects.find((p) => p.id === projectId);
-  
-  const handleSave = () => {
-    toast.success('Project saved successfully');
+interface StudioHeaderProps {
+  projectId?: string | null;
+  projectName?: string;
+  onProjectNameChange?: (name: string) => void;
+  onManualSave?: () => Promise<void>;
+  saveStatus?: 'saved' | 'saving' | 'unsaved';
+}
+
+const StudioHeader: React.FC<StudioHeaderProps> = ({
+  projectId,
+  projectName: propProjectName,
+  onProjectNameChange,
+  onManualSave,
+  saveStatus: propSaveStatus,
+}) => {
+  const { terraformCode, nodes } = useStudioStore();
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>(propSaveStatus || 'saved');
+  const [projectName, setProjectName] = useState(propProjectName || 'Untitled Project');
+
+  useEffect(() => {
+    setProjectName(propProjectName || 'Untitled Project');
+  }, [propProjectName]);
+
+  useEffect(() => {
+    if (propSaveStatus) {
+      setSaveStatus(propSaveStatus);
+    }
+  }, [propSaveStatus]);
+
+  const handleSave = async () => {
+    if (!onManualSave) {
+      toast.error('Save function not available');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveStatus('saving');
+    
+    try {
+      await onManualSave();
+      setSaveStatus('saved');
+      toast.success('Project saved successfully');
+    } catch (error: any) {
+      setSaveStatus('unsaved');
+      toast.error('Failed to save project', {
+        description: error.message || 'Please try again',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const handleDeploy = () => {
@@ -56,18 +98,41 @@ const StudioHeader: React.FC = () => {
             <Cloud className="w-4 h-4 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-semibold text-sm">
-              {project?.name || 'Untitled Project'}
-            </h1>
+            <div>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => {
+                  const newName = e.target.value;
+                  setProjectName(newName);
+                  if (onProjectNameChange) {
+                    onProjectNameChange(newName);
+                  }
+                  setSaveStatus('unsaved');
+                }}
+                className="font-semibold text-sm bg-transparent border-none outline-none focus:outline-none p-0 w-full"
+                style={{ width: `${Math.max(projectName.length * 8, 150)}px` }}
+              />
+            </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{nodes.length} resources</span>
               <span>•</span>
-              <StatusBadge 
-                variant={syncStatus === 'synced' ? 'success' : 'warning'} 
-                size="sm"
-              >
-                {syncStatus}
-              </StatusBadge>
+              {saveStatus === 'saving' && (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              )}
+              {saveStatus === 'saved' && (
+                <StatusBadge variant="success" size="sm">
+                  Saved
+                </StatusBadge>
+              )}
+              {saveStatus === 'unsaved' && (
+                <StatusBadge variant="warning" size="sm">
+                  Unsaved
+                </StatusBadge>
+              )}
             </div>
           </div>
         </div>
@@ -84,8 +149,14 @@ const StudioHeader: React.FC = () => {
         <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-glass/50 rounded-lg transition-all">
           <Share2 className="w-4 h-4" />
         </button>
-        <GradientButton variant="secondary" size="sm" icon={<Save className="w-4 h-4" />} onClick={handleSave}>
-          Save
+        <GradientButton 
+          variant="secondary" 
+          size="sm" 
+          icon={isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} 
+          onClick={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving ? 'Saving...' : 'Save'}
         </GradientButton>
         <GradientButton size="sm" icon={<Play className="w-4 h-4" />} onClick={handleDeploy}>
           Deploy

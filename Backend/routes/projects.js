@@ -13,10 +13,11 @@ const router = express.Router();
 // All project routes are protected
 router.use(verifyToken);
 
-router.post('/save', saveProject);
-router.get('/', getAllProjects);
-router.get('/:id', getProject);
-router.put('/:id', updateProject);
-router.delete('/:id', deleteProject);
+// Simple CRUD routes
+router.post('/', saveProject);           // POST /api/projects - Create project
+router.get('/', getAllProjects);        // GET /api/projects - Get all projects
+router.get('/:id', getProject);         // GET /api/projects/:id - Get single project
+router.put('/:id', updateProject);     // PUT /api/projects/:id - Update project
+router.delete('/:id', deleteProject);  // DELETE /api/projects/:id - Delete project
 
 export default router;

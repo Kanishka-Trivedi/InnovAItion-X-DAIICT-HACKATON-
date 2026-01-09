@@ -63,6 +63,40 @@ const apiRequest = async <T>(
   return data as T;
 };
 
+// Project data interface
+export interface ProjectData {
+  projectName: string;
+  nodes: any[];
+  generatedCode?: string;
+}
+
+export interface ProjectResponse {
+  success: boolean;
+  message: string;
+  project: {
+    _id: string;
+    projectName: string;
+    nodes: any[];
+    generatedCode: string;
+    user: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+export interface ProjectsListResponse {
+  success: boolean;
+  count: number;
+  projects: Array<{
+    _id: string;
+    projectName: string;
+    nodes: any[];
+    generatedCode: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+
 // Authentication API functions
 export const authApi = {
   signup: async (data: SignupData): Promise<AuthResponse> => {
@@ -76,6 +110,46 @@ export const authApi = {
     return apiRequest<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+};
+
+// Project API functions
+export const projectApi = {
+  // Create a new project
+  create: async (data: ProjectData): Promise<ProjectResponse> => {
+    return apiRequest<ProjectResponse>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get all projects for the current user
+  getAll: async (): Promise<ProjectsListResponse> => {
+    return apiRequest<ProjectsListResponse>('/projects', {
+      method: 'GET',
+    });
+  },
+
+  // Get a single project by ID
+  getById: async (id: string): Promise<ProjectResponse> => {
+    return apiRequest<ProjectResponse>(`/projects/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  // Update an existing project
+  update: async (id: string, data: Partial<ProjectData>): Promise<ProjectResponse> => {
+    return apiRequest<ProjectResponse>(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete a project
+  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return apiRequest<{ success: boolean; message: string }>(`/projects/${id}`, {
+      method: 'DELETE',
     });
   },
 };
