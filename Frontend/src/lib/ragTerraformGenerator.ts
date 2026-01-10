@@ -1814,7 +1814,9 @@ const renderTemplate = (template: string, data: any): string => {
  * @param nodes - The nodes from the ReactFlow diagram
  * @returns Generated Terraform code
  */
-export const generateTerraformWithRag = async (nodes: Node[]): Promise<string> => {
+import { Edge } from 'reactflow';
+
+export const generateTerraformWithRag = async (nodes: Node[], edges?: Edge[]): Promise<string> => {
   if (nodes.length === 0) {
     return `# Cloud Architect - Terraform Configuration
 # Drag AWS resources to the canvas to generate code
@@ -2197,7 +2199,114 @@ output "lambda_function_names" {
 
 `;
 
+  // Process edges to generate networking resources
+  if (edges && edges.length > 0) {
+    terraformCode += '\n# Networking Resources based on Connections\n';
+    
+    for (const edge of edges) {
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      
+      if (sourceNode && targetNode) {
+        const sourceData = sourceNode.data as any;
+        const targetData = targetNode.data as any;
+        
+        // Determine the type of connection and generate appropriate networking resources
+        const connectionResources = generateNetworkingResources(
+          sourceData, 
+          targetData, 
+          sourceNode.id, 
+          targetNode.id
+        );
+        
+        terraformCode += connectionResources + '\n';
+      }
+    }
+  }
+
   return terraformCode;
+};
+
+/**
+ * Generates networking resources based on the connection between two nodes
+ */
+const generateNetworkingResources = (
+  sourceData: any, 
+  targetData: any, 
+  sourceNodeId: string, 
+  targetNodeId: string
+): string => {
+  const sourceType = sourceData.terraformType || sourceData.type;
+  const targetType = targetData.terraformType || targetData.type;
+  
+  // Normalize node IDs to resource names
+  const sourceResourceName = sourceData.label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const targetResourceName = targetData.label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  
+  let networkingCode = '';
+  
+  // Define connection mapping to determine necessary networking resources
+  if ((sourceType === 'aws_lambda_function' || sourceType === 'lambda') && 
+      (targetType === 'aws_instance' || targetType === 'ec2' || targetType === 'aws_db_instance' || targetType === 'rds')) {
+    // Lambda to EC2/RDS connection - need security group rules
+    networkingCode += '# Security Group Rules for connection from ' + sourceResourceName + ' to ' + targetResourceName + '\n';
+    
+    // Inbound rule on target (EC2/RDS) to allow traffic from Lambda
+    networkingCode += 'resource "aws_security_group_rule" "' + targetResourceName + '_from_' + sourceResourceName + '_ingress" {\n';
+    networkingCode += '  type                     = "ingress"\n';
+    networkingCode += '  security_group_id        = aws_security_group.' + targetResourceName + '_sg.id\n';
+    networkingCode += '  source_security_group_id = aws_security_group.' + sourceResourceName + '_sg.id\n';
+    networkingCode += '  protocol                 = "tcp"\n';
+    networkingCode += '  from_port                = 8080  # Assuming common application port\n';
+    networkingCode += '  to_port                  = 8080\n';
+    networkingCode += '  description              = "Allow traffic from ' + sourceResourceName + ' to ' + targetResourceName + '"\n';
+    networkingCode += '}\n\n';
+    
+    // If target is RDS, we might need a different port
+    if (targetType === 'aws_db_instance' || targetType === 'rds') {
+      networkingCode += 'resource "aws_security_group_rule" "' + targetResourceName + '_from_' + sourceResourceName + '_ingress_db" {\n';
+      networkingCode += '  type                     = "ingress"\n';
+      networkingCode += '  security_group_id        = aws_security_group.' + targetResourceName + '_sg.id\n';
+      networkingCode += '  source_security_group_id = aws_security_group.' + sourceResourceName + '_sg.id\n';
+      networkingCode += '  protocol                 = "tcp"\n';
+      networkingCode += '  from_port                = 5432  # PostgreSQL default\n';
+      networkingCode += '  to_port                  = 5432\n';
+      networkingCode += '  description              = "Allow DB traffic from ' + sourceResourceName + '"\n';
+      networkingCode += '}\n\n';
+    }
+  } else if ((sourceType === 'aws_instance' || sourceType === 'ec2') && 
+             (targetType === 'aws_db_instance' || targetType === 'rds')) {
+    // EC2 to RDS connection
+    networkingCode += '# Security Group Rules for connection from ' + sourceResourceName + ' to ' + targetResourceName + '\n';
+    networkingCode += 'resource "aws_security_group_rule" "' + targetResourceName + '_from_' + sourceResourceName + '_ingress" {\n';
+    networkingCode += '  type                     = "ingress"\n';
+    networkingCode += '  security_group_id        = aws_security_group.' + targetResourceName + '_sg.id\n';
+    networkingCode += '  source_security_group_id = aws_security_group.' + sourceResourceName + '_sg.id\n';
+    networkingCode += '  protocol                 = "tcp"\n';
+    networkingCode += '  from_port                = 5432  # PostgreSQL default\n';
+    networkingCode += '  to_port                  = 5432\n';
+    networkingCode += '  description              = "Allow DB traffic from ' + sourceResourceName + '"\n';
+    networkingCode += '}\n\n';
+  } else if ((sourceType === 'aws_lb' || sourceType === 'load_balancer') && 
+             (targetType === 'aws_instance' || targetType === 'ec2')) {
+    // Load Balancer to EC2 connection
+    networkingCode += '# Security Group Rules for connection from load balancer to ' + targetResourceName + '\n';
+    networkingCode += 'resource "aws_security_group_rule" "' + targetResourceName + '_from_lb_ingress" {\n';
+    networkingCode += '  type                     = "ingress"\n';
+    networkingCode += '  security_group_id        = aws_security_group.' + targetResourceName + '_sg.id\n';
+    networkingCode += '  source_security_group_id = aws_lb.this.security_group_id\n';
+    networkingCode += '  protocol                 = "tcp"\n';
+    networkingCode += '  from_port                = 80\n';
+    networkingCode += '  to_port                  = 80\n';
+    networkingCode += '  description              = "Allow HTTP traffic from load balancer"\n';
+    networkingCode += '}\n\n';
+  } else {
+    // Generic connection - add comment for manual review
+    networkingCode += '# Connection from ' + sourceResourceName + ' to ' + targetResourceName + ' - Manual configuration may be needed\n';
+    networkingCode += '# Connection type: ' + sourceType + ' -> ' + targetType + '\n\n';
+  }
+  
+  return networkingCode;
 };
 
 /**

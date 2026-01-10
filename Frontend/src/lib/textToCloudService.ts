@@ -187,7 +187,7 @@ export const convertTextToCloud = async (text: string): Promise<TextToCloudResul
     }
     
     // Generate Terraform code from the nodes using RAG
-    const terraformCode = await generateTerraformWithRag(nodes);
+    const terraformCode = await generateTerraformWithRag(nodes, []); // No edges for text-to-cloud conversion
     
     return {
       nodes,

@@ -71,9 +71,9 @@ interface ProjectState {
 }
 
 // Update the generateTerraformFromNodes function to calculate costs as well
-const generateTerraformFromNodes = async (nodes: Node[]): Promise<string> => {
+const generateTerraformFromNodes = async (nodes: Node[], edges?: any[]): Promise<string> => {
   // Use the RAG-based generator instead of the hardcoded implementation
-  return await generateTerraformWithRag(nodes);
+  return await generateTerraformWithRag(nodes, edges);
 };
 
 export const useStudioStore = create<StudioState>((set, get) => ({
@@ -165,7 +165,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   async generateTerraform() {
     set({ syncStatus: 'syncing' });
     try {
-      const code = await generateTerraformFromNodes(get().nodes);
+      const code = await generateTerraformFromNodes(get().nodes, get().edges);
       set({ terraformCode: code, syncStatus: 'synced' });
     } catch (error) {
       console.error('Error generating Terraform:', error);
