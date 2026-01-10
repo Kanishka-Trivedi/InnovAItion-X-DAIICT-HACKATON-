@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -39,6 +39,16 @@ const DiagramCanvas: React.FC = () => {
   
   const [localNodes, setLocalNodes, onNodesChange] = useNodesState(nodes);
   const [localEdges, setLocalEdges, onEdgesChange] = useEdgesState(edges);
+  
+  // Sync store nodes to local state when store changes
+  useEffect(() => {
+    setLocalNodes(nodes);
+  }, [nodes, setLocalNodes]);
+  
+  // Sync store edges to local state when store changes
+  useEffect(() => {
+    setLocalEdges(edges);
+  }, [edges, setLocalEdges]);
   
   React.useEffect(() => {
     setNodes(localNodes);

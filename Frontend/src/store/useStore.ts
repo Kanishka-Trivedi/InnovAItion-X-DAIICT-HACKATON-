@@ -371,7 +371,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   isCodePanelCollapsed: false,
 
   setNodes: (nodes) => {
-    set({ nodes });
+    // Create a new array with updated nodes to ensure React re-renders
+    const newNodes = [...nodes];
+    set({ nodes: newNodes });
     get().calculateCosts(); // Recalculate costs when nodes change
     get().generateTerraform();
   },
@@ -427,9 +429,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   generateTerraform: () => {
     set({ syncStatus: 'syncing' });
     const code = generateTerraformFromNodes(get().nodes);
+    // Reduce the timeout to make the status update more responsive
     setTimeout(() => {
       set({ terraformCode: code, syncStatus: 'synced' });
-    }, 300);
+    }, 100); // Reduced from 300ms to 100ms
   },
 }));
 
