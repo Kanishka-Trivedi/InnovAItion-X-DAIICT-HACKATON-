@@ -90,24 +90,17 @@ const Studio: React.FC = () => {
       />
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - AI Infrastructure Generator and Drift Detection (Collapsible) */}
-        <ToolsPanel projectId={projectId || mongoProjectId || undefined} />
+        {/* Left Sidebar - Drift Detection and Chat Composer (Collapsible) */}
+        <ToolsPanel projectId={projectId || mongoProjectId || undefined} showChat={true} />
         
-        {/* Main Content Area */}
+        {/* Main Canvas Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Horizontal AWS Resources Bar */}
           <AWSResourcesBar />
           
-          {/* Diagram Canvas and Chat Composer */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1">
-              <DiagramCanvas />
-            </div>
-            
-            {/* Chat Composer - Positioned in bottom-left corner */}
-            <div className="h-80 border-t border-glass-border bg-background/80 backdrop-blur-lg">
-              <ChatComposer />
-            </div>
+          {/* Diagram Canvas */}
+          <div className="flex-1">
+            <DiagramCanvas />
           </div>
         </div>
         

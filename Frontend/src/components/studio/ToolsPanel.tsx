@@ -5,13 +5,16 @@ import { useStudioStore } from '@/store/useStore';
 import { cn } from '@/lib/utils';
 import TextToCloud from './TextToCloud';
 import DriftDetectionPanel from './DriftDetectionPanel';
+import ChatComposer from './ChatComposer';
 
 interface ToolsPanelProps {
   projectId?: string;
+  showChat?: boolean;
 }
 
-const ToolsPanel: React.FC<ToolsPanelProps> = ({ projectId }) => {
+const ToolsPanel: React.FC<ToolsPanelProps> = ({ projectId, showChat }) => {
   const { isToolsPanelCollapsed, toggleToolsPanel } = useStudioStore();
+  const showChatFinal = showChat ?? false;
 
   return (
     <motion.aside
@@ -53,14 +56,23 @@ const ToolsPanel: React.FC<ToolsPanelProps> = ({ projectId }) => {
             exit={{ opacity: 0 }}
             className="flex-1 flex flex-col overflow-hidden"
           >
-            {/* Top section - Drift Detection */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-              <DriftDetectionPanel projectId={projectId} />
-            </div>
-
-            {/* Bottom section - AI Generator */}
-            <div className="p-4 border-t border-sidebar-border bg-sidebar/50 backdrop-blur-sm">
-              <TextToCloud />
+            <div className="flex flex-col h-full">
+              {/* Top section - Drift Detection */}
+              <div className="overflow-y-auto p-4 space-y-4 custom-scrollbar flex-shrink-0">
+                <DriftDetectionPanel projectId={projectId} />
+              </div>
+            
+              {showChatFinal ? (
+                /* Middle section - Chat Composer */
+                <div className="flex-1 flex flex-col border-t border-sidebar-border bg-sidebar/50 backdrop-blur-sm">
+                  <ChatComposer />
+                </div>
+              ) : (
+                /* Bottom section - AI Generator */
+                <div className="p-4 border-t border-sidebar-border bg-sidebar/50 backdrop-blur-sm">
+                  <TextToCloud />
+                </div>
+              )}
             </div>
           </motion.div>
         )}
